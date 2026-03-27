@@ -1,0 +1,182 @@
+Guide étape par étape pour exécuter votre site INNOFLEET et le partager sur internet
+
+1. Prérequis
+
+· Node.js (téléchargez-le sur nodejs.org) – version 14 ou supérieure.
+· MongoDB installé localement (ou un compte MongoDB Atlas pour une base distante).
+· Un navigateur web (Chrome, Firefox, etc.).
+· (Optionnel) Git pour cloner le projet, mais vous avez déjà les fichiers.
+
+---
+
+2. Préparer le backend
+
+1. Ouvrez un terminal (PowerShell, CMD, bash) et placez-vous dans le dossier backend/ de votre projet.
+2. Installez les dépendances :
+   ```bash
+   npm install
+   ```
+3. Créez le fichier .env dans le dossier backend/ avec le contenu suivant (adaptez si nécessaire) :
+   ```env
+   PORT=5000
+   MONGO_URI=mongodb://localhost:27017/innofleet
+   JWT_SECRET=une_chaine_secrete_tres_longue_et_difficile_a_deviner
+   ```
+   · Si vous utilisez MongoDB Atlas, remplacez MONGO_URI par l’URI fournie (ex: mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/innofleet).
+4. Démarrez MongoDB (si vous utilisez une installation locale) :
+   · Sur Windows : ouvrez le Gestionnaire des tâches → onglet Services → vérifiez que MongoDB Server est en cours d’exécution. Sinon, démarrez-le.
+   · Sur macOS/Linux : sudo systemctl start mongod (ou sudo service mongod start).
+5. Lancez le serveur backend (en mode développement) :
+   ```bash
+   npm run dev
+   ```
+   Vous devriez voir :
+   ```
+   Serveur démarré sur le port 5000
+   MongoDB connecté
+   Utilisateur admin créé (login: admin / admin)
+   ```
+   Laissez ce terminal ouvert – le backend doit rester actif.
+
+---
+
+3. Préparer le frontend
+
+1. Ouvrez un second terminal et placez-vous dans le dossier frontend/.
+2. Lancez un serveur statique (par exemple avec serve) :
+   ```bash
+   npx serve
+   ```
+   Ou si vous avez installé serve globalement : serve .
+   Le terminal affichera une adresse locale, par exemple http://localhost:3000.
+3. Ouvrez votre navigateur à cette adresse. Vous devriez voir la page de connexion.
+
+---
+
+4. Tester l’application en local
+
+· Connectez-vous avec admin / admin (ou avec les identifiants que vous avez créés).
+· Parcourez les différentes pages (Véhicules, Missions, etc.) pour vérifier que tout fonctionne (ajout, modification, suppression).
+· Si vous voyez des erreurs dans la console (F12), reportez-vous aux sections précédentes pour les corriger.
+
+---
+Détail étape par étape : Partager l'application sur internet avec ngrok
+
+Contexte
+
+Vous avez deux serveurs locaux :
+
+· Backend : http://localhost:5000 (API Node.js)
+· Frontend : http://localhost:3000 (serveur statique)
+
+Pour que des utilisateurs externes accèdent à l'application, vous devez exposer ces deux serveurs via des tunnels ngrok. Le frontend devra appeler l’API via l’URL publique du backend.
+
+---
+
+Étape 1 : Installer et configurer ngrok
+
+1. Téléchargez ngrok sur ngrok.com (version gratuite).
+2. Décompressez l’archive dans un dossier de votre choix (ex: C:\ngrok sur Windows, /usr/local/bin sur Mac/Linux).
+3. Ouvrez un terminal et placez-vous dans le dossier contenant l’exécutable ngrok.
+4. (Optionnel) Authentifiez votre agent :
+   · Créez un compte gratuit sur ngrok.
+   · Récupérez votre auth token dans votre tableau de bord.
+   · Exécutez :
+     ```bash
+     ngrok config add-authtoken votre_token
+     ```
+   Cela vous donne accès à des fonctionnalités comme les sous-domaines fixes (utile pour garder la même URL à chaque redémarrage).
+
+---
+
+Étape 2 : Lancer le backend et le frontend localement
+
+· Backend : Dans un terminal, allez dans le dossier backend/ et lancez :
+  ```bash
+  npm run dev
+  ```
+  Vérifiez qu’il tourne bien sur le port 5000 (message : Serveur démarré sur le port 5000).
+· Frontend : Dans un autre terminal, allez dans le dossier frontend/ et lancez :
+  ```bash
+  npx serve
+  ```
+  Il devrait indiquer http://localhost:3000.
+
+Gardez ces deux terminaux ouverts.
+
+---
+
+Étape 3 : Exposer le backend avec ngrok
+
+1. Ouvrez un troisième terminal (ou utilisez un onglet supplémentaire).
+2. Exécutez :
+   ```bash
+   ngrok http 5000
+   ```
+3. ngrok démarre et affiche une ligne comme :
+   ```
+   Forwarding                    https://abc123.ngrok.io -> http://localhost:5000
+   ```
+   Notez l’URL publique du backend : https://abc123.ngrok.io (l’exemple réel sera différent).
+
+Important : Cette URL reste active tant que le terminal est ouvert. Ne fermez pas ce terminal.
+
+---
+
+Étape 4 : Modifier le frontend pour utiliser l’URL du backend
+
+1. Ouvrez le fichier frontend/js/script.js dans un éditeur de code.
+2. Localisez la ligne :
+   ```javascript
+   const API_BASE = 'http://localhost:5000/api';
+   ```
+3. Remplacez-la par l’URL de votre backend ngrok, en conservant /api :
+   ```javascript
+   const API_BASE = 'https://abc123.ngrok.io/api';
+   ```
+   (Attention : utilisez bien https et non http.)
+4. Sauvegardez le fichier.
+
+Remarque : Si vous changez l’URL, vous devrez peut-être recharger la page du frontend. Les utilisateurs devront se reconnecter car le domaine change (sessionStorage dépend du domaine).
+
+---
+
+Étape 5 : Exposer le frontend avec ngrok
+
+1. Ouvrez un quatrième terminal.
+2. Exécutez :
+   ```bash
+   ngrok http 3000
+   ```
+3. ngrok affiche une autre URL publique, par exemple :
+   ```
+   Forwarding                    https://xyz789.ngrok.io -> http://localhost:3000
+   ```
+   C’est l’URL que vous donnerez à vos utilisateurs.
+
+---
+
+Étape 6 : Tester depuis l’extérieur
+
+· Sur un autre appareil (ou en navigation privée), ouvrez un navigateur et allez à l’URL du frontend : https://xyz789.ngrok.io.
+· La page de connexion doit apparaître.
+· Connectez-vous avec admin / admin.
+· Vérifiez que les données s’affichent et que les actions (ajout, modification) fonctionnent.
+
+Problème possible : CORS
+Si le backend refuse les requêtes venant de l’URL du frontend, vous devez configurer CORS dans backend/server.js. Ouvrez ce fichier et remplacez la ligne app.use(cors()); par :
+
+```javascript
+app.use(cors({ origin: ['http://localhost:3000', 'https://xyz789.ngrok.io'] }));
+```
+
+Puis redémarrez le backend (Ctrl+C puis npm run dev). Vous pouvez aussi laisser app.use(cors()) pour accepter toutes les origines (moins sécurisé mais plus simple en test).
+
+---
+
+Étape 7 : Partager l’application
+
+· Donnez l’URL du frontend (https://xyz789.ngrok.io) à vos collègues ou clients.
+· Ils pourront accéder à l’application tant que les quatre terminaux (backend, frontend, deux ngrok) restent ouverts sur votre machine.
+
+---

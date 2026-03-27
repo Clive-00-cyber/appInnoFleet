@@ -1,0 +1,399 @@
+## Parfait ! Je vois toute votre application Innofleet. C'est une application complète avec :
+
+- **Backend** : API REST avec Express, MongoDB, JWT
+- **Frontend** : Interface utilisateur complète avec HTML/CSS/JS
+
+Voici comment héberger cette application sur Azure **pas à pas**.
+
+---
+
+## Structure actuelle de votre projet
+
+```
+innofleet/
+├── backend/
+│   ├── config/
+│   │   └── db.js
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── fuelController.js
+│   │   ├── maintenanceController.js
+│   │   ├── missionController.js
+│   │   ├── statsController.js
+│   │   ├── userController.js
+│   │   └── vehicleController.js
+│   ├── middleware/
+│   │   ├── admin.js
+│   │   ├── auth.js
+│   │   └── validate.js
+│   ├── models/
+│   │   ├── Fuel.js
+│   │   ├── Maintenance.js
+│   │   ├── Mission.js
+│   │   ├── User.js
+│   │   └── Vehicle.js
+│   ├── routes/
+│   │   ├── authRoutes.js
+│   │   ├── fuelRoutes.js
+│   │   ├── maintenanceRoutes.js
+│   │   ├── missionRoutes.js
+│   │   ├── statsRoutes.js
+│   │   ├── userRoutes.js
+│   │   └── vehicleRoutes.js
+│   ├── .env
+│   ├── .gitignore
+│   ├── package.json
+│   ├── server.js
+│   └── seed.js
+└── frontend/
+    ├── css/
+    │   └── style.css
+    ├── images/
+    │   └── logo.jpg
+    ├── js/
+    │   ├── administration.js
+    │   ├── carburant.js
+    │   ├── maintenance.js
+    │   ├── missions.js
+    │   ├── rapports.js
+    │   ├── script.js
+    │   ├── trajets.js
+    │   └── vehicules.js
+    ├── administration.html
+    ├── carburant.html
+    ├── index.html
+    ├── login.html
+    ├── maintenance.html
+    ├── mission.html
+    ├── rapports.html
+    ├── trajets.html
+    └── vehicules.html
+```
+
+---
+
+## Étape 1 : Adapter le code pour Azure
+
+### 1.1 Modifier `backend/server.js`
+
+```javascript
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+
+// Charger les variables d'environnement
+// En production, Azure utilise les variables d'environnement
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Servir les fichiers statiques du frontend
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Routes API
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/vehicles', require('./routes/vehicleRoutes'));
+app.use('/api/missions', require('./routes/missionRoutes'));
+app.use('/api/fuel', require('./routes/fuelRoutes'));
+app.use('/api/stats', require('./routes/statsRoutes'));
+app.use('/api/maintenances', require('./routes/maintenanceRoutes'));
+
+// Route pour servir index.html à la racine
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+// Connexion à MongoDB
+const connectDB = require('./config/db');
+connectDB();
+
+// Créer un utilisateur admin par défaut si aucun utilisateur n'existe
+const User = require('./models/User');
+const bcrypt = require('bcrypt');
+(async () => {
+  try {
+    const count = await User.countDocuments();
+    if (count === 0) {
+      const hashed = await bcrypt.hash('admin', 10);
+      await User.create({
+        nom: 'Admin',
+        cin: 'admin',
+        password: hashed,
+        role: 'admin',
+        statut: 'Déconnecté'
+      });
+      console.log('✅ Utilisateur admin créé (login: admin / admin)');
+    }
+  } catch (err) {
+    console.error('Erreur création admin:', err.message);
+  }
+})();
+
+// Démarrer le serveur
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Serveur démarré sur le port ${PORT}`);
+  console.log(`📁 Frontend servi depuis: ${path.join(__dirname, '../frontend')}`);
+});
+```
+
+### 1.2 Modifier `backend/config/db.js`
+
+```javascript
+const mongoose = require('mongoose');
+
+const connectDB = async () => {
+  try {
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    
+    if (!mongoUri) {
+      console.error('❌ MONGODB_URI non définie');
+      process.exit(1);
+    }
+    
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('✅ MongoDB connecté');
+  } catch (err) {
+    console.error('❌ Erreur MongoDB:', err.message);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+```
+
+### 1.3 Modifier `backend/.gitignore` (déjà correct)
+
+```
+node_modules/
+.env
+```
+
+### 1.4 Modifier `backend/package.json` (déjà correct)
+
+```json
+{
+  "name": "innofleet-backend",
+  "version": "1.0.0",
+  "description": "API REST pour la gestion de flotte automobile",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.22.1",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^7.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
+```
+
+### 1.5 Modifier `frontend/js/script.js` - LIGNE IMPORTANTE !
+
+Changez `API_BASE` pour qu'elle fonctionne en production :
+
+```javascript
+// script.js - Fonctions communes et API
+
+// Détecter automatiquement l'URL de base
+const API_BASE = window.location.origin + '/api';
+
+// Fonction générique pour appeler l'API
+export async function apiCall(endpoint, options = {}) {
+    const token = sessionStorage.getItem('token');
+    const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        ...options.headers
+    };
+    const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur réseau');
+    }
+    return response.json();
+}
+
+// Le reste du code reste identique...
+```
+
+---
+
+## Étape 2 : Créer un fichier de déploiement à la racine
+
+Créez un fichier `package.json` à la **racine** du projet `innofleet` :
+
+```json
+{
+  "name": "innofleet",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "cd backend && npm start"
+  }
+}
+```
+
+---
+
+## Étape 3 : Créer le dépôt GitHub
+
+```bash
+cd innofleet
+git init
+git add .
+git commit -m "Innofleet - Application complète de gestion de flotte"
+```
+
+---
+
+## Étape 4 : Configurer Azure App Service
+
+### 4.1 Créer l'App Service
+1. Portail Azure → **Créer une ressource** → **Application Web**
+2. Remplir :
+   - **Nom** : `innofleet-app` (unique)
+   - **Pile d'exécution** : Node.js 22 LTS
+   - **Système d'exploitation** : Linux
+   - **Groupe de ressources** : `InnofleetRG`
+   - **Plan** : F1 (Gratuit) pour commencer
+
+### 4.2 Configurer les variables d'environnement
+Dans l'App Service → **Configuration** → Ajouter :
+
+| Nom | Valeur |
+|-----|--------|
+| `MONGODB_URI` | Votre chaîne de connexion Cosmos DB |
+| `JWT_SECRET` | `innofleetSecretKey2026` (ou une clé sécurisée) |
+| `NODE_ENV` | `production` |
+
+### 4.3 Configurer le fichier de démarrage
+Dans **Configuration** → **Paramètres généraux** → **Fichier de démarrage** :
+```
+node server.js
+```
+
+---
+
+## Étape 5 : Déployer via GitHub
+
+1. Dans l'App Service → **Centre de déploiement**
+2. Choisir **GitHub**
+3. Sélectionner le dépôt `innofleet`
+4. Branche : `main`
+5. Enregistrer
+
+---
+
+## Étape 6 : Vérifier le déploiement
+
+### 6.1 Voir les logs
+- App Service → **Journal des flux**
+- Vous devriez voir :
+  ```
+  🚀 Serveur démarré sur le port 8080
+  ✅ MongoDB connecté
+  ```
+
+### 6.2 Tester l'application
+- URL : `https://innofleet-app.azurewebsites.net`
+- Login : `admin` / `admin`
+
+### 6.3 Tester les API
+```bash
+# Tester l'API
+curl https://innofleet-app.azurewebsites.net/api/vehicles
+```
+
+---
+
+## Étape 7 : Problèmes courants et solutions
+
+### Problème 1 : `MONGODB_URI not defined`
+- Vérifiez dans **Configuration** que la variable est bien définie
+
+### Problème 2 : Les fichiers frontend ne s'affichent pas
+- Vérifiez que `server.js` utilise `express.static(path.join(__dirname, '../frontend'))`
+
+### Problème 3 : Les appels API en 404
+- Vérifiez que toutes les routes sont bien enregistrées
+
+### Problème 4 : CORS
+- Le middleware `cors()` dans `server.js` résout ce problème
+
+---
+
+## Structure finale après déploiement
+
+```
+/home/site/wwwroot/
+├── backend/
+│   ├── config/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── package.json
+│   ├── server.js
+│   └── node_modules/
+├── frontend/
+│   ├── css/
+│   ├── images/
+│   ├── js/
+│   └── *.html
+└── package.json (racine)
+```
+
+---
+
+## Commandes récapitulatives
+
+```bash
+# 1. Se placer dans le dossier du projet
+cd innofleet
+
+# 2. Initialiser Git
+git init
+git add .
+git commit -m "Innofleet - Application complète"
+
+# 3. Ajouter GitHub
+git remote add origin https://github.com/VOTRE_NOM/innofleet.git
+git push -u origin main
+
+# 4. Dans Azure, configurer GitHub dans Centre de déploiement
+```
+
+---
+
+## Votre site sera accessible à :
+
+```
+https://innofleet-app.azurewebsites.net
+```
+
+**Identifiants par défaut :**
+- Utilisateur : `admin`
+- Mot de passe : `admin`
+
+---
+
+Voulez-vous que je détaille une partie spécifique ou que je vous aide à résoudre un problème particulier ?
